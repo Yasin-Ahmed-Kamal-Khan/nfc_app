@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -72,15 +73,33 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
             return;
           }
 
-          // Create NDEF record with MIME type application/json
-          final record = NdefRecord(
-            type: Uint8List.fromList('application/json'.codeUnits),
-            payload: jsonData!,
-            typeNameFormat: TypeNameFormat.wellKnown, // Use MIME type format
-            identifier: Uint8List(0), // Empty identifier
+          final Map<String, dynamic> metadata = {
+            "source": "phone",
+            "payloadType": "single", // or "multipart" if chunking
+            "version": 1,
+          };
+
+          // Encode metadata JSON string into bytes
+          final Uint8List metaPayload = Uint8List.fromList(
+            utf8.encode(jsonEncode(metadata)),
           );
 
-          final message = NdefMessage(records: [record]);
+          final metaRecord = NdefRecord(
+            type: Uint8List.fromList('application/json'.codeUnits),
+            payload: metaPayload,
+            typeNameFormat: TypeNameFormat.media,
+            identifier: Uint8List(0),
+          );
+
+          // Create NDEF record with MIME type application/json
+          final dataRecord = NdefRecord(
+            type: Uint8List.fromList('application/json'.codeUnits),
+            payload: jsonData!,
+            typeNameFormat: TypeNameFormat.media,
+            identifier: Uint8List(0),
+          );
+
+          final message = NdefMessage(records: [metaRecord, dataRecord]);
 
           try {
             await ndef.write(message: message);
