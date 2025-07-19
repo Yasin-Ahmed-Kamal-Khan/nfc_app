@@ -36,8 +36,8 @@ class _AppState extends State<App> {
   ];
 
   final List<Widget> _screens = [
-    const HomeTab(),
-    const SearchTab(),
+    const NfcReaderScreen(),
+    const JsonTransmitTab(),
     const ProfileTab(),
     const SettingsTab(),
   ];
@@ -63,4 +63,3 @@ class _AppState extends State<App> {
     );
   }
 }
-
