@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nfc_app/models/user_details.dart';
+import 'package:file_picker/file_picker.dart';
 
 class EnterDataTab extends StatefulWidget {
   const EnterDataTab({super.key});
@@ -16,7 +17,7 @@ class _EnterDataTabState extends State<EnterDataTab> {
 
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  // Add a controller for the file name
+  // Controller for the file name (without extension)
   final _fileNameController = TextEditingController();
 
   final _idNumberController = TextEditingController();
@@ -62,6 +63,82 @@ class _EnterDataTabState extends State<EnterDataTab> {
     _lastNameController.addListener(_updateFileName);
   }
 
+  Future<void> _showJsonFilePicker() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final files = directory
+        .listSync()
+        .where((e) => e is File && e.path.endsWith('.json'))
+        .map((e) => e.path.split(Platform.pathSeparator).last)
+        .toList();
+
+    if (files.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No JSON files found in app directory')),
+      );
+      return;
+    }
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Select a JSON file'),
+        children: files
+            .map(
+              (f) => SimpleDialogOption(
+                child: Text(f),
+                onPressed: () => Navigator.pop(context, f),
+              ),
+            )
+            .toList(),
+      ),
+    );
+
+    if (selected != null) {
+      await _loadFromJsonFileInAppDir(selected);
+    }
+  }
+
+  Future<void> _loadFromJsonFileInAppDir(String fileName) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      final content = await file.readAsString();
+      final data = jsonDecode(content);
+      final userDetails = UserDetails.fromJson(data);
+
+      setState(() {
+        _firstNameController.text = userDetails.firstName;
+        _lastNameController.text = userDetails.lastName;
+        _idNumberController.text = userDetails.idNumber;
+        _dateOfBirthController.text = userDetails.dateOfBirth
+            .toIso8601String()
+            .substring(0, 10);
+        _selectedGender = userDetails.gender;
+        _weightController.text = userDetails.weight.toString();
+        _conditionsController.text = userDetails.conditions;
+        _allergiesController.text = userDetails.allergies;
+        _currentMedicationsController.text = userDetails.currentMedications;
+        _pastMedicationsController.text = userDetails.pastMedications;
+        _pastSurgeriesController.text = userDetails.pastSurgeries;
+        _emergencyContactController.text = userDetails.emergencyContact
+            .toString();
+        _phoneNumberController.text = userDetails.phoneNumber.toString();
+        _dependentsController.text = userDetails.dependents;
+        _addressController.text = userDetails.address;
+        _doctorNotesController.text = userDetails.doctorNotes;
+        _fileNameController.text = fileName.replaceAll('.json', '');
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Loaded $fileName')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load file: $e')));
+    }
+  }
+
   void _updateFileName() {
     final first = _firstNameController.text.trim();
     final last = _lastNameController.text.trim();
@@ -71,7 +148,7 @@ class _EnterDataTabState extends State<EnterDataTab> {
     } else {
       base = 'user_details';
     }
-    _fileNameController.text = '$base.json';
+    _fileNameController.text = base; // No .json extension
   }
 
   Future<void> _saveDetailsToJsonFile(String fileName, String jsonData) async {
@@ -126,7 +203,9 @@ class _EnterDataTabState extends State<EnterDataTab> {
       );
 
       final json = jsonEncode(userDetails.toJson());
-      await _saveDetailsToJsonFile(_fileNameController.text.trim(), json);
+      // Always append .json to the file name
+      final fileName = '${_fileNameController.text.trim()}.json';
+      await _saveDetailsToJsonFile(fileName, json);
 
       setState(() {
         _savedUserDetails = userDetails;
@@ -136,6 +215,59 @@ class _EnterDataTabState extends State<EnterDataTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields')),
       );
+    }
+  }
+
+  // Add this method to load and fill fields from a JSON file
+  Future<void> _loadFromJsonFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final content = await file.readAsString();
+        final data = jsonDecode(content);
+
+        // If your UserDetails has a fromJson method, use it:
+        final userDetails = UserDetails.fromJson(data);
+
+        setState(() {
+          _firstNameController.text = userDetails.firstName;
+          _lastNameController.text = userDetails.lastName;
+          _idNumberController.text = userDetails.idNumber;
+          _dateOfBirthController.text = userDetails.dateOfBirth
+              .toIso8601String()
+              .substring(0, 10);
+          _selectedGender = userDetails.gender;
+          _weightController.text = userDetails.weight.toString();
+          _conditionsController.text = userDetails.conditions;
+          _allergiesController.text = userDetails.allergies;
+          _currentMedicationsController.text = userDetails.currentMedications;
+          _pastMedicationsController.text = userDetails.pastMedications;
+          _pastSurgeriesController.text = userDetails.pastSurgeries;
+          _emergencyContactController.text = userDetails.emergencyContact
+              .toString();
+          _phoneNumberController.text = userDetails.phoneNumber.toString();
+          _dependentsController.text = userDetails.dependents;
+          _addressController.text = userDetails.address;
+          _doctorNotesController.text = userDetails.doctorNotes;
+          // Set file name (without .json)
+          _fileNameController.text = result.files.single.name.replaceAll(
+            '.json',
+            '',
+          );
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Loaded ${result.files.single.name}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load file: $e')));
     }
   }
 
@@ -175,7 +307,7 @@ class _EnterDataTabState extends State<EnterDataTab> {
     );
   }
 
-  Widget _buildDisplayView() {
+  Widget buildDisplayView(UserDetails? user) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -190,7 +322,7 @@ class _EnterDataTabState extends State<EnterDataTab> {
           },
         ),
         title: Text(
-          _savedUserDetails?.firstName.toUpperCase() ?? 'MEDICAL ID',
+          user?.firstName.toUpperCase() ?? 'MEDICAL ID',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -213,36 +345,27 @@ class _EnterDataTabState extends State<EnterDataTab> {
         children: [
           _buildInfoCard(
             "Current Condition / Injury",
-            _savedUserDetails!.conditions,
+            user!.conditions,
             highlightColor: Colors.red.withOpacity(0.08),
           ),
-          _buildInfoCard(
-            "Blood Type",
-            _savedUserDetails!.bloodType.toShortString(),
-          ),
-          _buildInfoCard("Allergies", _savedUserDetails!.allergies),
-          _buildInfoCard(
-            "Current Medications",
-            _savedUserDetails!.currentMedications,
-          ),
+          _buildInfoCard("Blood Type", user!.bloodType.toShortString()),
+          _buildInfoCard("Allergies", user!.allergies),
+          _buildInfoCard("Current Medications", user!.currentMedications),
           _buildInfoCard(
             "Emergency Contact",
-            _savedUserDetails!.emergencyContact.toString(),
+            user!.emergencyContact.toString(),
           ),
           const SizedBox(height: 20),
           const Divider(),
-          _buildInfoCard("First Name", _savedUserDetails!.firstName),
-          _buildInfoCard("Last Name", _savedUserDetails!.lastName),
-          _buildInfoCard("ID Number", _savedUserDetails!.idNumber),
+          _buildInfoCard("First Name", user!.firstName),
+          _buildInfoCard("Last Name", user!.lastName),
+          _buildInfoCard("ID Number", user!.idNumber),
           _buildInfoCard(
             "Date of Birth",
-            _savedUserDetails!.dateOfBirth.toIso8601String().substring(0, 10),
+            user!.dateOfBirth.toIso8601String().substring(0, 10),
           ),
-          _buildInfoCard("Gender", _savedUserDetails!.gender.name),
-          _buildInfoCard(
-            "Weight",
-            "${_savedUserDetails!.weight.toStringAsFixed(1)} kg",
-          ),
+          _buildInfoCard("Gender", user!.gender.name),
+          _buildInfoCard("Weight", "${user!.weight.toStringAsFixed(1)} kg"),
         ],
       ),
     );
@@ -260,6 +383,15 @@ class _EnterDataTabState extends State<EnterDataTab> {
               const Text(
                 'Enter Medical Details',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              // Add a button to load a JSON file
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _showJsonFilePicker,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Load/Edit Medical Record'),
+                ),
               ),
               TextFormField(
                 controller: _idNumberController,
@@ -290,19 +422,6 @@ class _EnterDataTabState extends State<EnterDataTab> {
                 onChanged: (val) => setState(() => _selectedGender = val),
                 decoration: const InputDecoration(labelText: 'Gender'),
               ),
-              // DropdownButtonFormField<BloodType>(
-              //   value: _selectedBloodType,
-              //   items: _bloodTypes
-              //       .map(
-              //         (type) => DropdownMenuItem(
-              //           value: type,
-              //           child: Text(type.toShortString()),
-              //         ),
-              //       )
-              //       .toList(),
-              //   onChanged: (val) => setState(() => _selectedBloodType = val),
-              //   decoration: const InputDecoration(labelText: 'Blood Type'),
-              // ),
               TextFormField(
                 controller: _weightController,
                 decoration: const InputDecoration(labelText: 'Weight (kg)'),
@@ -354,14 +473,6 @@ class _EnterDataTabState extends State<EnterDataTab> {
                   labelText: 'Dependents (comma-separated or "None")',
                 ),
               ),
-              // DropdownButtonFormField<GuardianType>(
-              //   value: _selectedGuardianType,
-              //   items: _guardianOptions
-              //       .map((g) => DropdownMenuItem(value: g, child: Text(g.name)))
-              //       .toList(),
-              //   onChanged: (val) => setState(() => _selectedGuardianType = val),
-              //   decoration: const InputDecoration(labelText: 'Dependent On'),
-              // ),
               TextFormField(
                 controller: _addressController,
                 decoration: const InputDecoration(labelText: 'Address'),
@@ -371,22 +482,40 @@ class _EnterDataTabState extends State<EnterDataTab> {
                 decoration: const InputDecoration(labelText: 'Doctor Notes'),
                 maxLines: 3,
               ),
-              // Add this field for file name (editable)
-              TextFormField(
-                controller: _fileNameController,
-                decoration: const InputDecoration(
-                  labelText: 'File Name',
-                  helperText: 'Edit the file name if you want',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'File name is required';
-                  }
-                  if (!value.trim().endsWith('.json')) {
-                    return 'File name must end with .json';
-                  }
-                  return null;
-                },
+              // File name input with fixed .json extension
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _fileNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Medical Record Name',
+                        helperText: 'Enter Name of Medical Record',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'File name is required';
+                        }
+                        if (value.contains('.')) {
+                          return 'Please enter name without extension';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Text(
+                      '.json',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
@@ -405,7 +534,9 @@ class _EnterDataTabState extends State<EnterDataTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       // Added a Scaffold here to provide a consistent background
-      body: _isDisplayMode ? _buildDisplayView() : _buildFormView(),
+      body: _isDisplayMode
+          ? buildDisplayView(_savedUserDetails)
+          : _buildFormView(),
     );
   }
 

@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:nfc_app/models/user_details.dart';
 import 'package:nfc_manager/ndef_record.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager_ndef/nfc_manager_ndef.dart';
+import 'enter_data_tab.dart';
 
 class NfcQrScannerScreen extends StatefulWidget {
   const NfcQrScannerScreen({super.key});
@@ -138,6 +140,9 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
       data = tryParseData(records.first);
       if (data == null) return 'Error parsing JSON from tag';
     }
+
+    final userFromNfc = UserDetails.fromJson(data);
+
 
     return 'Received data from NFC ${metadata?['source'] ?? "card"}:\n'
         '${const JsonEncoder.withIndent('  ').convert(data)}';

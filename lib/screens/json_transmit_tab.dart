@@ -15,7 +15,7 @@ class JsonTransmitTab extends StatefulWidget {
 }
 
 class _JsonTransmitTabState extends State<JsonTransmitTab> {
-  String statusMessage = 'Select a JSON file to transmit';
+  String statusMessage = 'Select a Medical Record to transmit';
   String? fileName;
   Uint8List? jsonData;
   bool isTransmitting = false;
@@ -50,7 +50,7 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
         if (jsonFiles.isEmpty) {
           statusMessage = 'No JSON files found in app directory';
         } else {
-          statusMessage = 'Select a JSON file to transmit';
+          statusMessage = 'Select a Medical Record to transmit';
         }
       });
     } catch (e) {
@@ -262,7 +262,7 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
       jsonPreview = null; // <-- Clear preview
       statusMessage = availableJsonFiles.isEmpty
           ? 'No JSON files found in app directory'
-          : 'Select a JSON file to transmit';
+          : 'Select a Medical Record to transmit';
     });
   }
 
@@ -291,7 +291,7 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Available JSON Files',
+                'Available Medical Records',
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
