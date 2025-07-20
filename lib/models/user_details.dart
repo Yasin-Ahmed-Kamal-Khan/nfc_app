@@ -1,4 +1,5 @@
-import 'dart:convert';
+
+
 
 enum Gender { male, female }
 enum GuardianType { none, parent, guardian }
@@ -57,9 +58,9 @@ class UserDetails {
   final String pastMedications;
   final String pastSurgeries;
   final String address;
-  final String phoneNumber;
-  final String emergencyContact;
-  final String dependents; // changed from int to string (names or "None")
+  final int phoneNumber;
+  final int emergencyContact;
+  final String dependents;
   final GuardianType dependentOn;
   final String lastSync;
   final String doctorNotes;
@@ -92,7 +93,7 @@ class UserDetails {
       firstName: json['FirstName'] ?? '',
       lastName: json['LastName'] ?? '',
       idNumber: json['IDNumber'] ?? '',
-      dateOfBirth: DateTime.tryParse(json['DateOfBirth'] ?? '') ?? DateTime(2000),
+      dateOfBirth: DateTime.tryParse(json['DateOfBirth'] ?? '') ?? DateTime.now(),
       gender: json['Gender'] == 'M' ? Gender.male : Gender.female,
       bloodType: BloodTypeExtension.fromString(json['BloodType'] ?? ''),
       allergies: json['Allergies'] ?? '',
@@ -101,8 +102,8 @@ class UserDetails {
       pastMedications: json['PastMedications'] ?? '',
       pastSurgeries: json['PastSurgeries'] ?? '',
       address: json['Address'] ?? '',
-      phoneNumber: json['PhoneNumber'] ?? '',
-      emergencyContact: json['EmergencyContact'] ?? '',
+      phoneNumber: int.tryParse(json['PhoneNumber']?.toString() ?? '') ?? 0,
+      emergencyContact: int.tryParse(json['EmergencyContact']?.toString() ?? '') ?? 0,
       dependents: json['Dependents'] ?? 'None',
       dependentOn: GuardianType.values.firstWhere(
         (g) => g.name == (json['DependentOn'] ?? 'none'),
@@ -110,7 +111,7 @@ class UserDetails {
       ),
       lastSync: json['LastSync'] ?? '',
       doctorNotes: json['DoctorNotes'] ?? '',
-      weight: double.tryParse(json['Weight'].toString()) ?? 0.0,
+      weight: double.tryParse(json['Weight']?.toString() ?? '') ?? 0.0,
     );
   }
 
@@ -134,7 +135,7 @@ class UserDetails {
       'DependentOn': dependentOn.name,
       'LastSync': lastSync,
       'DoctorNotes': doctorNotes,
-      'Weight': weight.toStringAsFixed(1),
+      'Weight': weight,
     };
   }
 

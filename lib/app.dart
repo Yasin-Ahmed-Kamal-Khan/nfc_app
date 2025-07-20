@@ -37,9 +37,9 @@ class _AppState extends State<App> {
 
   final List<Widget> _screens = [
     const EnterDataTab(),
-    const NfcReaderScreen(),
+    const NfcQrScannerScreen(),
     const JsonTransmitTab(),
-    const NfcCardWriteTab(),
+    const JsonQrTab(),
   ];
 
   @override

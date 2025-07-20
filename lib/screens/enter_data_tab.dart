@@ -1,4 +1,3 @@
-// Keep your imports
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -14,6 +13,7 @@ class EnterDataTab extends StatefulWidget {
 
 class _EnterDataTabState extends State<EnterDataTab> {
   final _formKey = GlobalKey<FormState>();
+
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   // Add a controller for the file name
@@ -29,7 +29,6 @@ class _EnterDataTabState extends State<EnterDataTab> {
   final _addressController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   final _emergencyContactController = TextEditingController();
-  final _lastSyncController = TextEditingController();
   final _doctorNotesController = TextEditingController();
   final _weightController = TextEditingController();
   final _dependentsController = TextEditingController();
@@ -38,22 +37,21 @@ class _EnterDataTabState extends State<EnterDataTab> {
   BloodType? _selectedBloodType;
   GuardianType? _selectedGuardianType;
 
-  final List<BloodType> _bloodTypes = BloodType.values;
-  final List<GuardianType> _guardianOptions = GuardianType.values;
+  bool _isDisplayMode = false;
+  UserDetails? _savedUserDetails;
 
-  void _selectDate() async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime(1990),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-    );
-    if (pickedDate != null) {
-      _dateOfBirthController.text = pickedDate.toIso8601String().substring(
-        0,
-        10,
-      );
+  String? _requiredValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'This field is required';
     }
+    return null;
+  }
+
+  String? _requiredDropdownValidator<T>(T? value) {
+    if (value == null) {
+      return 'Please select an option';
+    }
+    return null;
   }
 
   @override
@@ -88,61 +86,170 @@ class _EnterDataTabState extends State<EnterDataTab> {
   }
 
   void _saveDetails() async {
-    final userDetails = UserDetails(
-      firstName: _firstNameController.text,
-      lastName: _lastNameController.text,
-      idNumber: _idNumberController.text,
-      dateOfBirth: DateTime.parse(_dateOfBirthController.text),
-      gender: _selectedGender ?? Gender.male,
-      bloodType: _selectedBloodType ?? BloodType.unknown,
-      allergies: _allergiesController.text,
-      conditions: _conditionsController.text,
-      currentMedications: _currentMedicationsController.text,
-      pastMedications: _pastMedicationsController.text,
-      pastSurgeries: _pastSurgeriesController.text,
-      address: _addressController.text,
-      phoneNumber: _phoneNumberController.text,
-      emergencyContact: _emergencyContactController.text,
-      dependents: _dependentsController.text.isEmpty
-          ? 'None'
-          : _dependentsController.text,
-      dependentOn: _selectedGuardianType ?? GuardianType.none,
-      lastSync: _lastSyncController.text,
-      doctorNotes: _doctorNotesController.text,
-      weight: double.tryParse(_weightController.text) ?? 0.0,
+    if (_formKey.currentState!.validate()) {
+      // Only check for gender since other dropdowns are removed
+      if (_selectedGender == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please select a gender')));
+        return;
+      }
+
+      final userDetails = UserDetails(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        idNumber: _idNumberController.text.trim(),
+        dateOfBirth: DateTime.parse(_dateOfBirthController.text),
+        gender: _selectedGender!,
+        // Set default values for removed dropdowns
+        bloodType: BloodType.unknown,
+        allergies: _allergiesController.text.trim().isEmpty
+            ? 'None'
+            : _allergiesController.text.trim(),
+        conditions: _conditionsController.text.trim().isEmpty
+            ? 'None'
+            : _conditionsController.text.trim(),
+        currentMedications: _currentMedicationsController.text.trim(),
+        pastMedications: _pastMedicationsController.text.trim(),
+        pastSurgeries: _pastSurgeriesController.text.trim(),
+        address: _addressController.text.trim(),
+        phoneNumber: int.tryParse(_phoneNumberController.text.trim()) ?? 0,
+        emergencyContact:
+            int.tryParse(_emergencyContactController.text.trim()) ?? 0,
+        dependents: _dependentsController.text.trim().isEmpty
+            ? 'None'
+            : _dependentsController.text.trim(),
+        dependentOn: GuardianType.none, // Set a default value
+        lastSync: DateTime.now().toIso8601String(),
+        doctorNotes: _doctorNotesController.text.trim(),
+        weight: double.tryParse(_weightController.text.trim()) ?? 0.0,
+      );
+
+      final json = jsonEncode(userDetails.toJson());
+      await _saveDetailsToJsonFile(_fileNameController.text.trim(), json);
+
+      setState(() {
+        _savedUserDetails = userDetails;
+        _isDisplayMode = true;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all required fields')),
+      );
+    }
+  }
+
+  Widget _buildInfoCard(String label, String value, {Color? highlightColor}) {
+    if (value.isEmpty || value == 'None' || value == '0') {
+      return const SizedBox.shrink();
+    }
+    return Card(
+      elevation: 1.0,
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: highlightColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+                fontSize: 12,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
     );
-
-    final json = jsonEncode(userDetails.toJson());
-    // Use the file name from the controller
-    await _saveDetailsToJsonFile(_fileNameController.text.trim(), json);
   }
 
-  @override
-  void dispose() {
-    _firstNameController.removeListener(_updateFileName);
-    _lastNameController.removeListener(_updateFileName);
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _fileNameController.dispose();
-    _idNumberController.dispose();
-    _dateOfBirthController.dispose();
-    _allergiesController.dispose();
-    _conditionsController.dispose();
-    _currentMedicationsController.dispose();
-    _pastMedicationsController.dispose();
-    _pastSurgeriesController.dispose();
-    _addressController.dispose();
-    _phoneNumberController.dispose();
-    _emergencyContactController.dispose();
-    _lastSyncController.dispose();
-    _doctorNotesController.dispose();
-    _weightController.dispose();
-    _dependentsController.dispose();
-    super.dispose();
+  Widget _buildDisplayView() {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            setState(() {
+              _isDisplayMode = false;
+            });
+          },
+        ),
+        title: Text(
+          _savedUserDetails?.firstName.toUpperCase() ?? 'MEDICAL ID',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Edit Details',
+            onPressed: () {
+              setState(() {
+                _isDisplayMode = false;
+              });
+            },
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildInfoCard(
+            "Current Condition / Injury",
+            _savedUserDetails!.conditions,
+            highlightColor: Colors.red.withOpacity(0.08),
+          ),
+          _buildInfoCard(
+            "Blood Type",
+            _savedUserDetails!.bloodType.toShortString(),
+          ),
+          _buildInfoCard("Allergies", _savedUserDetails!.allergies),
+          _buildInfoCard(
+            "Current Medications",
+            _savedUserDetails!.currentMedications,
+          ),
+          _buildInfoCard(
+            "Emergency Contact",
+            _savedUserDetails!.emergencyContact.toString(),
+          ),
+          const SizedBox(height: 20),
+          const Divider(),
+          _buildInfoCard("First Name", _savedUserDetails!.firstName),
+          _buildInfoCard("Last Name", _savedUserDetails!.lastName),
+          _buildInfoCard("ID Number", _savedUserDetails!.idNumber),
+          _buildInfoCard(
+            "Date of Birth",
+            _savedUserDetails!.dateOfBirth.toIso8601String().substring(0, 10),
+          ),
+          _buildInfoCard("Gender", _savedUserDetails!.gender.name),
+          _buildInfoCard(
+            "Weight",
+            "${_savedUserDetails!.weight.toStringAsFixed(1)} kg",
+          ),
+        ],
+      ),
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // --- NEW: This builds the data entry form ---
+  Widget _buildFormView() {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -183,19 +290,19 @@ class _EnterDataTabState extends State<EnterDataTab> {
                 onChanged: (val) => setState(() => _selectedGender = val),
                 decoration: const InputDecoration(labelText: 'Gender'),
               ),
-              DropdownButtonFormField<BloodType>(
-                value: _selectedBloodType,
-                items: _bloodTypes
-                    .map(
-                      (type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type.toShortString()),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) => setState(() => _selectedBloodType = val),
-                decoration: const InputDecoration(labelText: 'Blood Type'),
-              ),
+              // DropdownButtonFormField<BloodType>(
+              //   value: _selectedBloodType,
+              //   items: _bloodTypes
+              //       .map(
+              //         (type) => DropdownMenuItem(
+              //           value: type,
+              //           child: Text(type.toShortString()),
+              //         ),
+              //       )
+              //       .toList(),
+              //   onChanged: (val) => setState(() => _selectedBloodType = val),
+              //   decoration: const InputDecoration(labelText: 'Blood Type'),
+              // ),
               TextFormField(
                 controller: _weightController,
                 decoration: const InputDecoration(labelText: 'Weight (kg)'),
@@ -247,14 +354,14 @@ class _EnterDataTabState extends State<EnterDataTab> {
                   labelText: 'Dependents (comma-separated or "None")',
                 ),
               ),
-              DropdownButtonFormField<GuardianType>(
-                value: _selectedGuardianType,
-                items: _guardianOptions
-                    .map((g) => DropdownMenuItem(value: g, child: Text(g.name)))
-                    .toList(),
-                onChanged: (val) => setState(() => _selectedGuardianType = val),
-                decoration: const InputDecoration(labelText: 'Dependent On'),
-              ),
+              // DropdownButtonFormField<GuardianType>(
+              //   value: _selectedGuardianType,
+              //   items: _guardianOptions
+              //       .map((g) => DropdownMenuItem(value: g, child: Text(g.name)))
+              //       .toList(),
+              //   onChanged: (val) => setState(() => _selectedGuardianType = val),
+              //   decoration: const InputDecoration(labelText: 'Dependent On'),
+              // ),
               TextFormField(
                 controller: _addressController,
                 decoration: const InputDecoration(labelText: 'Address'),
@@ -263,12 +370,6 @@ class _EnterDataTabState extends State<EnterDataTab> {
                 controller: _doctorNotesController,
                 decoration: const InputDecoration(labelText: 'Doctor Notes'),
                 maxLines: 3,
-              ),
-              TextFormField(
-                controller: _lastSyncController,
-                decoration: const InputDecoration(
-                  labelText: 'Last Sync Timestamp',
-                ),
               ),
               // Add this field for file name (editable)
               TextFormField(
@@ -298,5 +399,51 @@ class _EnterDataTabState extends State<EnterDataTab> {
         ),
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // Added a Scaffold here to provide a consistent background
+      body: _isDisplayMode ? _buildDisplayView() : _buildFormView(),
+    );
+  }
+
+  void _selectDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (pickedDate != null) {
+      _dateOfBirthController.text = pickedDate.toIso8601String().substring(
+        0,
+        10,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.removeListener(_updateFileName);
+    _lastNameController.removeListener(_updateFileName);
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _fileNameController.dispose();
+    _idNumberController.dispose();
+    _dateOfBirthController.dispose();
+    _allergiesController.dispose();
+    _conditionsController.dispose();
+    _currentMedicationsController.dispose();
+    _pastMedicationsController.dispose();
+    _pastSurgeriesController.dispose();
+    _addressController.dispose();
+    _phoneNumberController.dispose();
+    _emergencyContactController.dispose();
+    _doctorNotesController.dispose();
+    _weightController.dispose();
+    _dependentsController.dispose();
+    super.dispose();
   }
 }
