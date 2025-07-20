@@ -21,6 +21,7 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
   bool isTransmitting = false;
   List<String> availableJsonFiles = [];
   bool isLoadingFiles = false;
+  String? jsonPreview; // <-- Add this field
 
   @override
   void initState() {
@@ -68,6 +69,7 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
       if (!await file.exists()) {
         setState(() {
           statusMessage = 'File no longer exists';
+          jsonPreview = null; // <-- Update here
         });
         _loadJsonFiles(); // Refresh the list
         return;
@@ -77,22 +79,24 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
 
       // Validate JSON
       try {
-        jsonDecode(utf8.decode(content));
+        final decoded = jsonDecode(utf8.decode(content));
+        setState(() {
+          fileName = selectedFileName;
+          jsonData = content;
+          statusMessage = 'Ready to transmit: $selectedFileName';
+          jsonPreview = const JsonEncoder.withIndent('  ').convert(decoded);
+        });
       } catch (e) {
         setState(() {
           statusMessage = 'Invalid JSON file: $e';
+          jsonPreview = null; // <-- Update here
         });
         return;
       }
-
-      setState(() {
-        fileName = selectedFileName;
-        jsonData = content;
-        statusMessage = 'Ready to transmit: $selectedFileName';
-      });
     } catch (e) {
       setState(() {
         statusMessage = 'Error reading file: $e';
+        jsonPreview = null; // <-- Update here
       });
     }
   }
@@ -255,6 +259,7 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
     setState(() {
       fileName = null;
       jsonData = null;
+      jsonPreview = null; // <-- Clear preview
       statusMessage = availableJsonFiles.isEmpty
           ? 'No JSON files found in app directory'
           : 'Select a JSON file to transmit';
@@ -410,6 +415,30 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
                 ],
               ),
             ),
+
+          // JSON preview
+          if (jsonPreview != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  jsonPreview!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                ),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 20),
 
