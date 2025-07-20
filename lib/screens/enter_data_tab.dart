@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:io'; // For File operations
 import 'dart:convert';
-import 'package:path_provider/path_provider.dart'; // Import path_provider
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:nfc_app/models/user_details.dart';
 
 class EnterDataTab extends StatefulWidget {
@@ -12,165 +12,225 @@ class EnterDataTab extends StatefulWidget {
 }
 
 class _EnterDataTabState extends State<EnterDataTab> {
-  final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _ageController = TextEditingController();
-  final TextEditingController _sexController = TextEditingController();
-
   final _formKey = GlobalKey<FormState>();
+
+  // Controllers
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _idNumberController = TextEditingController();
+  final _dateOfBirthController = TextEditingController();
+  final _allergiesController = TextEditingController();
+  final _conditionsController = TextEditingController();
+  final _currentMedicationsController = TextEditingController();
+  final _pastMedicationsController = TextEditingController();
+  final _pastSurgeriesController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _phoneNumberController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
+  final _lastSyncController = TextEditingController();
+  final _doctorNotesController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _dependentsController = TextEditingController();
+
+  Gender? _selectedGender;
+  String? _selectedBloodType;
+
+  final List<String> _bloodTypes = [
+    'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'
+  ];
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _ageController.dispose();
-    _sexController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _idNumberController.dispose();
+    _dateOfBirthController.dispose();
+    _allergiesController.dispose();
+    _conditionsController.dispose();
+    _currentMedicationsController.dispose();
+    _pastMedicationsController.dispose();
+    _pastSurgeriesController.dispose();
+    _addressController.dispose();
+    _phoneNumberController.dispose();
+    _emergencyContactController.dispose();
+    _lastSyncController.dispose();
+    _doctorNotesController.dispose();
+    _weightController.dispose();
+    _dependentsController.dispose();
     super.dispose();
   }
 
   Future<void> _saveDetailsToJsonFile(String fileName, String jsonData) async {
     try {
-      // 1. Get the application's documents directory
       final directory = await getApplicationDocumentsDirectory();
       final file = File('${directory.path}/$fileName');
-
-      // 2. Write the JSON data to the file
       await file.writeAsString(jsonData);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Details saved to ${file.path}')),
         );
       }
-      print('JSON file saved to: ${file.path}');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error saving file: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving file: $e')),
+        );
       }
-      print('Error saving JSON file: $e');
+    }
+  }
+
+  void _selectDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime(1990),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (pickedDate != null) {
+      _dateOfBirthController.text = pickedDate.toIso8601String().substring(0, 10);
     }
   }
 
   void _saveDetails() async {
-    // if (_formKey.currentState!.validate()) {
-    //   final String fullName = _fullNameController.text;
-    //   final String age = _ageController.text;
-    //   final String sex = _sexController.text;
+    final userDetails = UserDetails(
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
+      idNumber: _idNumberController.text,
+      dateOfBirth: DateTime.parse(_dateOfBirthController.text),
+      gender: _selectedGender ?? Gender.male,
+      bloodType: _selectedBloodType ?? 'Unknown',
+      allergies: _allergiesController.text,
+      conditions: _conditionsController.text,
+      currentMedications: _currentMedicationsController.text,
+      pastMedications: _pastMedicationsController.text,
+      pastSurgeries: _pastSurgeriesController.text,
+      address: _addressController.text,
+      phoneNumber: _phoneNumberController.text,
+      emergencyContact: _emergencyContactController.text,
+      dependents: int.tryParse(_dependentsController.text) ?? 0,
+      lastSync: _lastSyncController.text,
+      doctorNotes: _doctorNotesController.text,
+      weight: double.tryParse(_weightController.text) ?? 0.0,
+    );
 
-    //   print('Saving Details:');
-    //   print('Name: $fullName');
-    //   print('Email: $age');
-    //   print('Notes: $sex');
-
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     const SnackBar(content: Text('Details Saved Successfully!')),
-    //   );
-
-    //   _fullNameController.clear();
-    //   _ageController.clear();
-    //   _sexController.clear();
-    // }
-    final String fullName = _fullNameController.text;
-    final String age = _ageController.text;
-    final String sex = _sexController.text;
-
-    final userDetails = UserDetails(fullName: fullName, age: age, sex: sex);
-    final Map<String, dynamic> userDetailsMap = userDetails.toJson();
-    final String jsonData = jsonEncode(userDetailsMap);
-
-    print('Generated JSON: $jsonData');
-
-    // Call the function to save the JSON to a file
-    await _saveDetailsToJsonFile(
-      'user_details.json',
-      jsonData,
-    ); // You can choose any filename
-
-    // Optionally, you could load it immediately after saving to verify
-    // await _loadJsonFromFile('user_details.json');
-
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   const SnackBar(content: Text('Details saved to internal app storage.')),
-    // );
-
-    _fullNameController.clear();
-    _ageController.clear();
-    _sexController.clear();
+    final json = jsonEncode(userDetails.toJson());
+    await _saveDetailsToJsonFile('user_details.json', json);
   }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 50, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 40, 16, 20),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Text(
-                'Enter Your Details',
+                'Enter Medical Details',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
               TextFormField(
-                controller: _fullNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                // validator: (value) {
-                //   if (value == null || value.isEmpty) {
-                //     return 'Please enter your name';
-                //   }
-                //   return null;
-                // },
+                controller: _firstNameController,
+                decoration: const InputDecoration(labelText: 'First Name'),
               ),
-              const SizedBox(height: 15),
               TextFormField(
-                controller: _ageController,
-                decoration: const InputDecoration(
-                  labelText: 'Age',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                // validator: (value) {
-                //   if (value == null || value.isEmpty) {
-                //     return 'Please enter your email';
-                //   }
-                //   if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                //     return 'Please enter a valid email address';
-                //   }
-                //   return null;
-                // },
+                controller: _lastNameController,
+                decoration: const InputDecoration(labelText: 'Last Name'),
               ),
-              const SizedBox(height: 15),
               TextFormField(
-                controller: _sexController,
+                controller: _idNumberController,
+                decoration: const InputDecoration(labelText: 'ID Number'),
+              ),
+              TextFormField(
+                controller: _dateOfBirthController,
                 decoration: const InputDecoration(
-                  labelText: 'Sex',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.note),
+                  labelText: 'Date of Birth',
+                  suffixIcon: Icon(Icons.calendar_today),
                 ),
-                // maxLines: 3,
+                readOnly: true,
+                onTap: _selectDate,
               ),
-              const SizedBox(height: 30),
-              Center(
-                child: ElevatedButton.icon(
-                  onPressed: _saveDetails,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Save Details'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40,
-                      vertical: 15,
-                    ),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                ),
+              DropdownButtonFormField<Gender>(
+                value: _selectedGender,
+                items: Gender.values.map((g) {
+                  return DropdownMenuItem(
+                    value: g,
+                    child: Text(g == Gender.male ? 'Male' : 'Female'),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _selectedGender = val),
+                decoration: const InputDecoration(labelText: 'Gender'),
               ),
+              DropdownButtonFormField<String>(
+                value: _selectedBloodType,
+                items: _bloodTypes.map((type) {
+                  return DropdownMenuItem(
+                    value: type,
+                    child: Text(type),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _selectedBloodType = val),
+                decoration: const InputDecoration(labelText: 'Blood Type'),
+              ),
+              TextFormField(
+                controller: _allergiesController,
+                decoration: const InputDecoration(labelText: 'Allergies'),
+              ),
+              TextFormField(
+                controller: _conditionsController,
+                decoration: const InputDecoration(labelText: 'Conditions'),
+              ),
+              TextFormField(
+                controller: _currentMedicationsController,
+                decoration: const InputDecoration(labelText: 'Current Medications'),
+              ),
+              TextFormField(
+                controller: _pastMedicationsController,
+                decoration: const InputDecoration(labelText: 'Past Medications'),
+              ),
+              TextFormField(
+                controller: _pastSurgeriesController,
+                decoration: const InputDecoration(labelText: 'Past Surgeries'),
+              ),
+              TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(labelText: 'Address'),
+              ),
+              TextFormField(
+                controller: _phoneNumberController,
+                decoration: const InputDecoration(labelText: 'Phone Number'),
+              ),
+              TextFormField(
+                controller: _emergencyContactController,
+                decoration: const InputDecoration(labelText: 'Emergency Contact'),
+              ),
+              TextFormField(
+                controller: _dependentsController,
+                decoration: const InputDecoration(labelText: 'Dependents'),
+                keyboardType: TextInputType.number,
+              ),
+              TextFormField(
+                controller: _lastSyncController,
+                decoration: const InputDecoration(labelText: 'Last Sync Time'),
+              ),
+              TextFormField(
+                controller: _doctorNotesController,
+                decoration: const InputDecoration(labelText: 'Doctor Notes'),
+                maxLines: 4,
+              ),
+              TextFormField(
+                controller: _weightController,
+                decoration: const InputDecoration(labelText: 'Weight (kg)'),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _saveDetails,
+                icon: const Icon(Icons.save),
+                label: const Text('Save Details'),
+              )
             ],
           ),
         ),
