@@ -14,30 +14,30 @@ class _AppState extends State<App> {
 
   final List<TabItem> _tabs = [
     TabItem(
-      title: 'Home',
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home,
+      title: 'Receive Data',
+      icon: Icons.download_outlined,
+      activeIcon: Icons.download,
     ),
     TabItem(
-      title: 'Search',
-      icon: Icons.search_outlined,
-      activeIcon: Icons.search,
+      title: 'Enter Data',
+      icon: Icons.edit_outlined,
+      activeIcon: Icons.edit,
     ),
     TabItem(
-      title: 'Profile',
-      icon: Icons.person_outlined,
-      activeIcon: Icons.person,
+      title: 'NFC Upload',
+      icon: Icons.upload_outlined,
+      activeIcon: Icons.upload,
     ),
     TabItem(
-      title: 'Settings',
-      icon: Icons.settings_outlined,
-      activeIcon: Icons.settings,
+      title: 'NFC Transfer',
+      icon: Icons.nfc_outlined,
+      activeIcon: Icons.nfc,
     ),
   ];
 
   final List<Widget> _screens = [
     const HomeTab(),
-    const SearchTab(),
+    const EnterDataTab(),
     const ProfileTab(),
     const SettingsTab(),
   ];
@@ -59,8 +59,9 @@ class _AppState extends State<App> {
               ),
             )
             .toList(),
+        unselectedLabelStyle: TextStyle(fontSize: 11.0),
+        selectedLabelStyle: TextStyle(fontSize: 12.5),
       ),
     );
   }
 }
-
