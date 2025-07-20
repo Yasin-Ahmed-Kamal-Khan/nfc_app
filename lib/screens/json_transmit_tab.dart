@@ -338,47 +338,85 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
             )
           else
             Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ListView.builder(
-                  itemCount: availableJsonFiles.length,
-                  itemBuilder: (context, index) {
-                    final file = availableJsonFiles[index];
-                    final isSelected = fileName == file;
-
-                    return ListTile(
-                      leading: Icon(
-                        Icons.description,
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                      title: Text(
-                        file,
-                        style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.bold : null,
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
+              child:
+                  fileName ==
+                      null // <-- Only show the box if no file is selected
+                  ? Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
                         ),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      trailing: isSelected
-                          ? Icon(
-                              Icons.check_circle,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          : null,
-                      selected: isSelected,
-                      onTap: () => selectJsonFile(file),
-                    );
-                  },
-                ),
-              ),
+                      child: ListView.builder(
+                        itemCount: availableJsonFiles.length,
+                        itemBuilder: (context, index) {
+                          final file = availableJsonFiles[index];
+                          final isSelected = fileName == file;
+
+                          return ListTile(
+                            leading: Icon(
+                              Icons.description,
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            title: Text(
+                              file,
+                              style: TextStyle(
+                                fontWeight: isSelected ? FontWeight.bold : null,
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : null,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? Icon(
+                                    Icons.check_circle,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  )
+                                : null,
+                            selected: isSelected,
+                            onTap: () => selectJsonFile(file),
+                          );
+                        },
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: availableJsonFiles.length,
+                      itemBuilder: (context, index) {
+                        final file = availableJsonFiles[index];
+                        final isSelected = fileName == file;
+
+                        return ListTile(
+                          leading: Icon(
+                            Icons.description,
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                          ),
+                          title: Text(
+                            file,
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.bold : null,
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? Icon(
+                                  Icons.check_circle,
+                                  color: Theme.of(context).colorScheme.primary,
+                                )
+                              : null,
+                          selected: isSelected,
+                          onTap: () => selectJsonFile(file),
+                        );
+                      },
+                    ),
             ),
 
           const SizedBox(height: 20),
