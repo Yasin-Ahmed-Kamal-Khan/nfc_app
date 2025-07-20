@@ -1,230 +1,292 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:nfc_manager/ndef_record.dart';
-import 'package:nfc_manager/nfc_manager.dart';
-import 'package:nfc_manager_ndef/nfc_manager_ndef.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:io';
+import 'dart:convert';
 
-class NfcCardWriteTab extends StatefulWidget {
-  const NfcCardWriteTab({super.key});
+class JsonQrTab extends StatefulWidget {
+  const JsonQrTab({super.key});
 
   @override
-  State<NfcCardWriteTab> createState() => _NfcCardWriteTabState();
+  State<JsonQrTab> createState() => _JsonQrTabState();
 }
 
-class _NfcCardWriteTabState extends State<NfcCardWriteTab> {
-  String statusMessage = 'Select a JSON file to write to NFC card';
-  String? fileName;
-  Uint8List? jsonData;
-  bool isWriting = false;
+class _JsonQrTabState extends State<JsonQrTab> {
+  List<JsonQrItem> jsonQrItems = [];
+  bool isLoading = true;
 
-  Future<void> pickJsonFile() async {
+  @override
+  void initState() {
+    super.initState();
+    loadJsonFiles();
+  }
+
+  Future<void> loadJsonFiles() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
+      final directory = await getApplicationDocumentsDirectory();
+      final directoryContents = directory.listSync();
+      final jsonFiles = directoryContents
+          .where((entity) => entity is File && entity.path.endsWith('.json'))
+          .map((entity) => entity.path.split('/').last)
+          .toList();
 
-      if (result == null || result.files.isEmpty) return;
+      List<JsonQrItem> items = [];
 
-      final file = File(result.files.single.path!);
-      final content = await file.readAsBytes();
+      for (String fileName in jsonFiles) {
+        try {
+          final file = File('${directory.path}/$fileName');
+          final jsonString = await file.readAsString();
 
-      // Validate JSON
-      try {
-        jsonDecode(utf8.decode(content));
-      } catch (e) {
-        setState(() {
-          statusMessage = 'Invalid JSON file: $e';
-        });
-        return;
+          // Validate JSON
+          json.decode(jsonString);
+
+          items.add(JsonQrItem(fileName: fileName, jsonContent: jsonString));
+        } catch (_) {}
       }
 
       setState(() {
-        fileName = result.files.single.name;
-        jsonData = content;
-        statusMessage = 'Ready to write: ${result.files.single.name}';
+        jsonQrItems = items;
+        isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        statusMessage = 'Error selecting file: $e';
+        isLoading = false;
       });
     }
-  }
-
-  Future<void> writeToNfcCard() async {
-    if (jsonData == null) {
-      setState(() => statusMessage = 'No JSON file selected');
-      return;
-    }
-
-    setState(() {
-      isWriting = true;
-      statusMessage = 'Hold NFC card near device to write...';
-    });
-
-    try {
-      await NfcManager.instance.startSession(
-        pollingOptions: {
-          NfcPollingOption.iso14443,
-          NfcPollingOption.iso15693,
-          NfcPollingOption.iso18092,
-        },
-        onDiscovered: (tag) async {
-          final ndef = Ndef.from(tag);
-          if (ndef == null || !ndef.isWritable) {
-            setState(() {
-              statusMessage = 'NFC card is not writable';
-              isWriting = false;
-            });
-            NfcManager.instance.stopSession();
-            return;
-          }
-
-          try {
-            // Create metadata record
-            final Map<String, dynamic> metadata = {
-              "source": "phone",
-              "payloadType": "single",
-              "version": 1,
-              "fileName": fileName,
-            };
-
-            final Uint8List metaPayload = Uint8List.fromList(
-              utf8.encode(jsonEncode(metadata)),
-            );
-
-            final metaRecord = NdefRecord(
-              type: Uint8List.fromList('application/json'.codeUnits),
-              payload: metaPayload,
-              typeNameFormat: TypeNameFormat.media,
-              identifier: Uint8List.fromList('meta'.codeUnits),
-            );
-
-            // Create JSON data record
-            final dataRecord = NdefRecord(
-              type: Uint8List.fromList('application/json'.codeUnits),
-              payload: jsonData!,
-              typeNameFormat: TypeNameFormat.media,
-              identifier: Uint8List.fromList('data'.codeUnits),
-            );
-
-            final message = NdefMessage(records: [metaRecord, dataRecord]);
-
-            await ndef.write(message: message);
-            setState(() {
-              statusMessage = 'Successfully wrote $fileName to NFC card!';
-              isWriting = false;
-            });
-          } catch (e) {
-            setState(() {
-              statusMessage = 'Error writing to card: $e';
-              isWriting = false;
-            });
-          }
-
-          NfcManager.instance.stopSession();
-        },
-      );
-    } catch (e) {
-      setState(() {
-        statusMessage = 'NFC error: $e';
-        isWriting = false;
-      });
-    }
-  }
-
-  void _clearSelection() {
-    setState(() {
-      fileName = null;
-      jsonData = null;
-      statusMessage = 'Select a JSON file to write to NFC card';
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ElevatedButton(
-            onPressed: pickJsonFile,
-            child: const Text('Select JSON File'),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('JSON QR Codes'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                isLoading = true;
+              });
+              loadJsonFiles();
+            },
           ),
-          const SizedBox(height: 20),
-          if (fileName != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
+        ],
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : jsonQrItems.isEmpty
+          ? Center(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Icon(Icons.description, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
                   Text(
-                    'Selected file:',
-                    style: Theme.of(context).textTheme.labelMedium,
+                    'No JSON files found',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    fileName!,
+                  SizedBox(height: 8),
+                  Text('Add JSON files to your documents directory'),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: jsonQrItems.length,
+              itemBuilder: (context, index) {
+                return JsonQrCard(item: jsonQrItems[index]);
+              },
+            ),
+    );
+  }
+}
+
+class JsonQrItem {
+  final String fileName;
+  final String jsonContent;
+
+  const JsonQrItem({required this.fileName, required this.jsonContent});
+}
+
+class JsonQrCard extends StatefulWidget {
+  final JsonQrItem item;
+
+  const JsonQrCard({super.key, required this.item});
+
+  @override
+  State<JsonQrCard> createState() => _JsonQrCardState();
+}
+
+class _JsonQrCardState extends State<JsonQrCard> {
+  bool isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.description, color: Colors.blue),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.item.fileName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Size: ${(jsonData!.length / 1024).toStringAsFixed(1)} KB',
-                    style: Theme.of(context).textTheme.bodySmall,
+                ),
+                IconButton(
+                  icon: Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
                   ),
-                ],
+                  onPressed: () {
+                    setState(() {
+                      isExpanded = !isExpanded;
+                    });
+                  },
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Center(
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: QrImageView(
+                  data: widget.item.jsonContent,
+                  version: QrVersions.auto,
+                  size: 200.0,
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.M,
+                ),
               ),
             ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: isWriting ? null : writeToNfcCard,
-            child: isWriting
-                ? const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 10),
-                      Text('Writing...'),
-                    ],
-                  )
-                : const Text('Write to NFC Card'),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              statusMessage,
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
-            ),
-          ),
-          if (fileName != null) ...[
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: _clearSelection,
-              child: const Text('Clear Selection'),
+            if (isExpanded) ...[
+              SizedBox(height: 16),
+              Text(
+                'JSON Content:',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Text(
+                  _formatJson(widget.item.jsonContent),
+                  style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ),
+              ),
+            ],
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showQrFullScreen(context),
+                  icon: Icon(Icons.fullscreen),
+                  label: Text('Full Screen'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _shareQr(context),
+                  icon: Icon(Icons.share),
+                  label: Text('Share'),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  String _formatJson(String jsonString) {
+    try {
+      final dynamic jsonObject = json.decode(jsonString);
+      return JsonEncoder.withIndent('  ').convert(jsonObject);
+    } catch (e) {
+      return jsonString; // Return original if formatting fails
+    }
+  }
+
+  void _showQrFullScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => QrFullScreenView(
+          fileName: widget.item.fileName,
+          jsonContent: widget.item.jsonContent,
+        ),
+      ),
+    );
+  }
+
+  void _shareQr(BuildContext context) {
+    // You can implement sharing functionality here
+    // For example, using the share_plus package
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Share QR Code'),
+        content: Text(
+          'Sharing functionality can be implemented using packages like share_plus or by saving the QR code as an image.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class QrFullScreenView extends StatelessWidget {
+  final String fileName;
+  final String jsonContent;
+
+  const QrFullScreenView({
+    super.key,
+    required this.fileName,
+    required this.jsonContent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(fileName),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Container(
+          padding: EdgeInsets.all(32),
+          child: QrImageView(
+            data: jsonContent,
+            version: QrVersions.auto,
+            size: MediaQuery.of(context).size.width * 0.8,
+            backgroundColor: Colors.white,
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
+          ),
+        ),
       ),
     );
   }
