@@ -24,14 +24,14 @@ class _AppState extends State<App> {
       activeIcon: Icons.download,
     ),
     TabItem(
-      title: 'NFC Upload',
-      icon: Icons.upload_outlined,
-      activeIcon: Icons.upload,
-    ),
-    TabItem(
       title: 'NFC Transfer',
       icon: Icons.nfc_outlined,
       activeIcon: Icons.nfc,
+    ),
+    TabItem(
+      title: 'QR Transfer',
+      icon: Icons.qr_code_outlined,
+      activeIcon: Icons.qr_code,
     ),
   ];
 
