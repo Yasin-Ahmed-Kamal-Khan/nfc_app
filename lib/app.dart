@@ -39,7 +39,7 @@ class _AppState extends State<App> {
     const EnterDataTab(),
     const NfcReaderScreen(),
     const JsonTransmitTab(),
-    const SettingsTab(),
+    const NfcCardWriteTab(),
   ];
 
   @override
