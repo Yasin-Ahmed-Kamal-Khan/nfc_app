@@ -5,7 +5,6 @@ import 'package:nfc_app/models/user_details.dart';
 import 'package:nfc_manager/ndef_record.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager_ndef/nfc_manager_ndef.dart';
-import 'enter_data_tab.dart';
 
 class NfcQrScannerScreen extends StatefulWidget {
   const NfcQrScannerScreen({super.key});
@@ -20,6 +19,8 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
   bool isLoading = false;
   late TabController _tabController;
   MobileScannerController? qrController;
+  Map<String, dynamic>? scannedData;
+  String? dataSource;
 
   @override
   void initState() {
@@ -34,11 +35,42 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
     super.dispose();
   }
 
+  // Helper method to filter out empty/null values
+  Map<String, dynamic> _filterEmptyValues(Map<String, dynamic> data) {
+    final filtered = <String, dynamic>{};
+
+    for (final entry in data.entries) {
+      final value = entry.value;
+
+      // Skip null, empty strings, and "None" values
+      if (value == null ||
+          (value is String && (value.isEmpty || value.toLowerCase() == 'none')) ||
+          (value is List && value.isEmpty) ||
+          (value is Map && value.isEmpty)) {
+        continue;
+      }
+
+      // Recursively filter nested maps
+      if (value is Map<String, dynamic>) {
+        final filteredNested = _filterEmptyValues(value);
+        if (filteredNested.isNotEmpty) {
+          filtered[entry.key] = filteredNested;
+        }
+      } else {
+        filtered[entry.key] = value;
+      }
+    }
+
+    return filtered;
+  }
+
   // NFC Methods (existing functionality)
   Future<void> readNfcTag() async {
     setState(() {
       isLoading = true;
       scanMessage = "Hold your phone near an NFC tag...";
+      scannedData = null;
+      dataSource = null;
     });
 
     try {
@@ -63,15 +95,12 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
           });
 
           try {
-            final message = await handleNfcTag(tag);
-            setState(() {
-              scanMessage = message;
-              isLoading = false;
-            });
+            await handleNfcTag(tag);
           } catch (e) {
             setState(() {
               scanMessage = "Error reading tag: $e";
               isLoading = false;
+              scannedData = null;
             });
           } finally {
             NfcManager.instance.stopSession();
@@ -82,6 +111,7 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
       setState(() {
         scanMessage = "Failed to start NFC session: $e";
         isLoading = false;
+        scannedData = null;
       });
     }
   }
@@ -118,15 +148,25 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
     return null;
   }
 
-  Future<String> handleNfcTag(NfcTag tag) async {
+  Future<void> handleNfcTag(NfcTag tag) async {
     final ndef = Ndef.from(tag);
     if (ndef == null) {
-      return 'NDEF not supported on this tag';
+      setState(() {
+        scanMessage = 'NDEF not supported on this tag';
+        isLoading = false;
+        scannedData = null;
+      });
+      return;
     }
 
     final message = await readNdefMessage(ndef);
     if (message == null) {
-      return 'No NDEF records found';
+      setState(() {
+        scanMessage = 'No NDEF records found';
+        isLoading = false;
+        scannedData = null;
+      });
+      return;
     }
 
     final records = message.records;
@@ -135,17 +175,35 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
 
     if (metadata != null && records.length > 1) {
       data = tryParseData(records[1]);
-      if (data == null) return 'Error parsing JSON data record';
+      if (data == null) {
+        setState(() {
+          scanMessage = 'Error parsing JSON data record';
+          isLoading = false;
+          scannedData = null;
+        });
+        return;
+      }
     } else {
       data = tryParseData(records.first);
-      if (data == null) return 'Error parsing JSON from tag';
+      if (data == null) {
+        setState(() {
+          scanMessage = 'Error parsing JSON from tag';
+          isLoading = false;
+          scannedData = null;
+        });
+        return;
+      }
     }
 
     final userFromNfc = UserDetails.fromJson(data);
+    final filteredData = _filterEmptyValues(data);
 
-
-    return 'Received data from NFC ${metadata?['source'] ?? "card"}:\n'
-        '${const JsonEncoder.withIndent('  ').convert(data)}';
+    setState(() {
+      scannedData = filteredData;
+      dataSource = 'NFC ${metadata?['source'] ?? "card"}';
+      scanMessage = "Data successfully scanned!";
+      isLoading = false;
+    });
   }
 
   // QR Code Methods
@@ -165,24 +223,33 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
 
   void _handleQrData(String data) {
     setState(() {
-      scanMessage = _processQrData(data);
       isLoading = false;
     });
-  }
 
-  String _processQrData(String data) {
     try {
       // Try to parse as JSON
       final decoded = jsonDecode(data);
       if (decoded is Map) {
-        return 'Received data from QR code:\n'
-            '${const JsonEncoder.withIndent('  ').convert(decoded)}';
+        final filteredData = _filterEmptyValues(Map<String, dynamic>.from(decoded));
+        setState(() {
+          scannedData = filteredData;
+          dataSource = 'QR Code';
+          scanMessage = "Data successfully scanned!";
+        });
       } else {
-        return 'QR Code data (non-JSON):\n$data';
+        setState(() {
+          scanMessage = 'QR Code data (non-JSON):\n$data';
+          scannedData = null;
+          dataSource = null;
+        });
       }
     } catch (e) {
       // Not JSON, return as plain text
-      return 'QR Code data:\n$data';
+      setState(() {
+        scanMessage = 'QR Code data:\n$data';
+        scannedData = null;
+        dataSource = null;
+      });
     }
   }
 
@@ -190,6 +257,8 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
     setState(() {
       isLoading = true;
       scanMessage = "Point camera at QR code...";
+      scannedData = null;
+      dataSource = null;
     });
 
     qrController?.start();
@@ -230,6 +299,10 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
   }
 
   Widget _buildNfcTab() {
+    if (scannedData != null && _tabController.index == 0) {
+      return _buildDataDisplayView();
+    }
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -273,6 +346,10 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
   }
 
   Widget _buildQrTab() {
+    if (scannedData != null && _tabController.index == 1) {
+      return _buildDataDisplayView();
+    }
+
     return Column(
       children: [
         Expanded(
@@ -337,6 +414,247 @@ class _NfcQrScannerScreenState extends State<NfcQrScannerScreen>
         ),
       ],
     );
+  }
+
+  Widget _buildDataDisplayView() {
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 120,
+            floating: false,
+            pinned: true,
+            backgroundColor: Colors.blue,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(
+                'Scanned from $dataSource',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.blue.shade400, Colors.blue.shade700],
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.check_circle,
+                    size: 48,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () {
+                  setState(() {
+                    scannedData = null;
+                    dataSource = null;
+                    scanMessage = "Choose scan method to read data";
+                  });
+                },
+                tooltip: 'Scan Again',
+              ),
+            ],
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                if (scannedData != null) ..._buildDataCards(scannedData!),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildDataCards(Map<String, dynamic> data) {
+    final widgets = <Widget>[];
+
+    data.forEach((key, value) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, Colors.grey.shade50],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _formatKey(key),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade800,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          _getIconForKey(key),
+                          color: Colors.blue.shade600,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildValueWidget(value),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+
+    return widgets;
+  }
+
+  Widget _buildValueWidget(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: value.entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    '${_formatKey(entry.key)}:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    entry.value.toString(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    } else if (value is List) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: value.asMap().entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${entry.key + 1}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    entry.value.toString(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    } else {
+      return Text(
+        value.toString(),
+        style: const TextStyle(
+          fontSize: 18,
+          color: Colors.black87,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+    }
+  }
+
+  String _formatKey(String key) {
+    // Convert snake_case and camelCase to Title Case
+    return key
+        .replaceAllMapped(RegExp(r'[_]([a-z])'), (match) => ' ${match.group(1)!.toUpperCase()}')
+        .replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (match) => '${match.group(1)} ${match.group(2)}')
+        .split(' ')
+        .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(' ');
+  }
+
+  IconData _getIconForKey(String key) {
+    final lowerKey = key.toLowerCase();
+    if (lowerKey.contains('name')) return Icons.person;
+    if (lowerKey.contains('email')) return Icons.email;
+    if (lowerKey.contains('phone')) return Icons.phone;
+    if (lowerKey.contains('address')) return Icons.location_on;
+    if (lowerKey.contains('id') || lowerKey.contains('number')) return Icons.tag;
+    if (lowerKey.contains('date') || lowerKey.contains('time')) return Icons.calendar_today;
+    if (lowerKey.contains('company') || lowerKey.contains('organization')) return Icons.business;
+    if (lowerKey.contains('url') || lowerKey.contains('website')) return Icons.link;
+    return Icons.info;
   }
 
   Widget _buildQrInitialView() {
