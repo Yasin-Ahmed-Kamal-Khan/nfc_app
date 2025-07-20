@@ -266,6 +266,19 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
     });
   }
 
+  Future<void> _deleteJsonFile(String fileToDelete) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/$fileToDelete');
+    if (await file.exists()) {
+      await file.delete();
+    }
+    // If the deleted file was selected, clear selection
+    if (fileName == fileToDelete) {
+      _clearSelection();
+    }
+    await _loadJsonFiles();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -370,14 +383,57 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
                                     : null,
                               ),
                             ),
-                            trailing: isSelected
-                                ? Icon(
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isSelected)
+                                  Icon(
                                     Icons.check_circle,
                                     color: Theme.of(
                                       context,
                                     ).colorScheme.primary,
-                                  )
-                                : null,
+                                  ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.redAccent,
+                                  ),
+                                  tooltip: 'Delete file',
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Delete JSON File'),
+                                        content: Text(
+                                          'Are you sure you want to delete "$file"?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(
+                                              context,
+                                            ).pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            child: const Text(
+                                              'Delete',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      await _deleteJsonFile(file);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
                             selected: isSelected,
                             onTap: () => selectJsonFile(file),
                           );
@@ -406,12 +462,52 @@ class _JsonTransmitTabState extends State<JsonTransmitTab> {
                                   : null,
                             ),
                           ),
-                          trailing: isSelected
-                              ? Icon(
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isSelected)
+                                Icon(
                                   Icons.check_circle,
                                   color: Theme.of(context).colorScheme.primary,
-                                )
-                              : null,
+                                ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.redAccent,
+                                ),
+                                tooltip: 'Delete file',
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Delete JSON File'),
+                                      content: Text(
+                                        'Are you sure you want to delete "$file"?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          child: const Text(
+                                            'Delete',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await _deleteJsonFile(file);
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
                           selected: isSelected,
                           onTap: () => selectJsonFile(file),
                         );
