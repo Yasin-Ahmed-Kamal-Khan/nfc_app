@@ -14,14 +14,14 @@ class _AppState extends State<App> {
 
   final List<TabItem> _tabs = [
     TabItem(
-      title: 'Receive Data',
-      icon: Icons.download_outlined,
-      activeIcon: Icons.download,
-    ),
-    TabItem(
       title: 'Enter Data',
       icon: Icons.edit_outlined,
       activeIcon: Icons.edit,
+    ),
+    TabItem(
+      title: 'Receive Data',
+      icon: Icons.download_outlined,
+      activeIcon: Icons.download,
     ),
     TabItem(
       title: 'NFC Upload',
